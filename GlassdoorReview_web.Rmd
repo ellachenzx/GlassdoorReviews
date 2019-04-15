@@ -1,0 +1,339 @@
+---
+title: "Is Glassdoor an Effective Way to Learn about Companies?"
+author: "Zexing Chen"
+date: "April 12, 2019"
+output: html_document
+---
+##### Glassdoor is a commonly used platform where people learn about companies through reading the reviews written by employees. Reviews from employees are definitely as authentic as they could be. However, are you really able to learn about a company effectively through this particular site? Are there discrepencies between what you might perceive and what the data is indicating? Here are some explorations. 
+
+```{r}
+library(tidyverse)
+library(gridExtra, warn.conflicts = F)
+library(corrplot)
+reviews <- read.csv("data/employee_reviews.csv")
+head(reviews,1)
+
+UpFirst <- function(s){
+  paste(toupper(substring(s,1,1)), substring(s,2), sep = "")}
+
+reviews$company <- UpFirst(reviews$company)
+reviews$dates <- str_sub(reviews$dates, -4, -1)
+
+names(reviews)
+reviews <- reviews[,-c(1,3,5)]
+
+cat("Rows and Columns: ", dim(reviews))
+
+reviews2018 <- filter(reviews, dates == 2018)
+cat("Rows and Columns:", dim(reviews2018))
+
+```
+
+
+  Reviews from 2018 take up only about 20% of all reviews in this dataset. In other words, 80% of the reviews in this dataset are potentially outdated. 
+
+## **Part 1: What does the data actually say?**
+
+```{r}
+tabl_comp <- as.data.frame(table(reviews$company))
+names(tabl_comp)[1] <- "Company Name"
+names(tabl_comp)[2] <- "Number_of_Reviews"
+tabl_comp[order(tabl_comp$Number_of_Reviews, decreasing = T),]
+```
+
+
+  As presented by the table above, Amazon has the most reviews in this dataset, while Netflix has the least.
+
+
+
+
+```{r}
+
+c1 <- ggplot(reviews2018, aes(company, overall.ratings))+
+  geom_boxplot(fill = "red3")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Overall Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+reviews2018$work.balance.stars[reviews2018$work.balance.stars == "none"] <- NA
+reviews2018$work.balance.stars <- as.numeric(as.character(reviews2018$work.balance.stars))
+wb_full <- reviews2018[complete.cases(reviews2018$work.balance.stars), ]
+c2 <- ggplot(wb_full, aes(company, work.balance.stars))+
+  geom_boxplot(fill = "Royalblue2")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Work Balance Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+reviews2018$culture.values.stars[reviews2018$culture.values.stars == "none"] <- NA
+reviews2018$culture.values.stars <- as.numeric(as.character(reviews2018$culture.values.stars))
+cv_full <- reviews2018[complete.cases(reviews2018$culture.values.stars), ]
+c3 <- ggplot(cv_full, aes(company, culture.values.stars))+
+  geom_boxplot(fill = "springgreen2")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Culture Values Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+reviews2018$carrer.opportunities.stars[reviews2018$carrer.opportunities.stars == "none"] <- NA
+reviews2018$carrer.opportunities.stars <- as.numeric(as.character(reviews2018$carrer.opportunities.stars))
+copp_full <- reviews2018[complete.cases(reviews2018$carrer.opportunities.stars), ]
+c4 <- ggplot(copp_full, aes(company, carrer.opportunities.stars))+
+  geom_boxplot(fill = "yellow")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Career Opportunities Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+reviews2018$comp.benefit.stars[reviews2018$comp.benefit.stars == "none"] <- NA
+reviews2018$comp.benefit.stars <- as.numeric(as.character(reviews2018$comp.benefit.stars))
+cb_full <- reviews2018[complete.cases(reviews2018$comp.benefit.stars), ]
+c5 <- ggplot(cb_full, aes(company, comp.benefit.stars))+
+  geom_boxplot(fill = "violet")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Company Benefit Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+reviews2018$senior.mangemnet.stars[reviews2018$senior.mangemnet.stars == "none"] <- NA
+reviews2018$senior.mangemnet.stars <- as.numeric(as.character(reviews2018$senior.mangemnet.stars))
+sem_full <- reviews2018[complete.cases(reviews2018$senior.mangemnet.stars), ]
+c6 <- ggplot(sem_full, aes(company, senior.mangemnet.stars))+
+  geom_boxplot(fill = "sienna1")+
+  coord_flip()+
+  labs(x = "", y = "", title = "Senior Management Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+grid.arrange(c1, c2, c3, c4, c5, c6, ncol = 3)
+```
+
+
+  These boxplots present employees' ratings (on a scale of 1 to 5) with respect to different areas of the company: 
+
+Overall rating: reflects employees' overall experience. **Google** and **Facebook** clearly took the lead by possessing a median of 5.
+
+Work balance: **Google, Facebook, Apple, and Microsoft** have a median of 4, better than Netflix and Amazon. Unlike other areas where at least one company would have a median of 5, work-balance's highest median is 4. This could indicate that generally employees in these 6 companies are not very satisfied with their work-balance, especially those working for Netflix and Amazon. 
+
+Culture values: culture values could potentially include work environment, company mission, value, ethics, expectations, and goals. Google, **Facebook**, and **Apple** have a median of 5. What stood out was that Netflix has a wide range of ratings, meaning that employees' attitude toward the company's culture varied significantly. 
+
+Career opportunities: **Google** and **Facebook** took the lead again. The other 4 companies all have a median of 4. Again, Netflix had wide range of ratings. 
+
+Company benefits: **Google, Facebook, and Netflix** have a median of 5. Microsoft, Apple, and Amazon have a median of 4. Overall, ratings in this area are pretty positive. 
+
+Senior Management: Only **Facebook** received a median of 5. Everyone else received a median of 4. Netflix has a wide range of ratings again. 
+
+  In general, it seems that **Facebook received very positive ratings for every area of investigation. Is that the case? Let's look at the mean ratings of each company. **
+
+
+```{r}
+mean_1 <- reviews2018 %>%
+  group_by(company) %>%
+  summarise(mean = mean(overall.ratings))
+
+c7 <- ggplot(mean_1, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "red3")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Overall Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+  
+
+mean_2 <- wb_full %>%
+  group_by(company) %>%
+  summarise(mean = mean(work.balance.stars))
+
+C8 <- ggplot(mean_2, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "royalblue2")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Work Balance Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+
+mean_3 <- cv_full %>%
+  group_by(company) %>%
+  summarise(mean = mean(culture.values.stars))
+
+C9 <- ggplot(mean_3, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "springgreen2")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Culture Values Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+
+mean_4 <- copp_full %>%
+  group_by(company) %>%
+  summarise(mean = mean(carrer.opportunities.stars))
+
+C10 <- ggplot(mean_4, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "yellow")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Career Opportunities Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+
+mean_5 <- cb_full %>%
+  group_by(company) %>%
+  summarise(mean = mean(comp.benefit.stars))
+
+C11 <- ggplot(mean_5, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "violet")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Company Benefits Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+mean_6 <- sem_full %>%
+  group_by(company) %>%
+  summarise(mean = mean(senior.mangemnet.stars))
+
+C12 <- ggplot(mean_6, aes(reorder(company, + mean), mean))+
+  geom_bar(stat = "identity", colour = "black", fill = "sienna1")+
+  coord_flip()+
+  geom_text(aes(label = round(mean,2), y = mean/2), size = 3.5)+
+  labs(x = "", y = "", title = "Senior Management Rating")+
+  theme(axis.text.y = element_text(size=8), plot.title = element_text(size=8))
+
+grid.arrange(c7, C8, C9, C10, C11, C12, ncol = 3)
+```
+
+
+  Here we see some very interesting results. Clearly Google won the first place in overall rating. However, when you look at the other categories, Facebook won in 4 out of the 5 remaining categories. Theoretically, Facebook should have won the overall rating, but it did not. This raises the question that **is employees' general feeling about a company strictly related to a particular aspect of the company?** Let's explore some more. 
+
+
+
+```{r}
+reviews2018_full_ratings <- reviews2018[,c(7:12)]
+reviews2018_full_ratings$overall.ratings[reviews2018_full_ratings$overall.ratings == "none"] <- NA
+reviews2018_full_ratings$work.balance.stars[reviews2018_full_ratings$work.balance.stars == "none"] <- NA
+reviews2018_full_ratings$culture.values.stars[reviews2018_full_ratings$culture.values.stars == "none"] <- NA
+reviews2018_full_ratings$carrer.opportunities.stars[reviews2018_full_ratings$carrer.opportunities.stars == "none"] <- NA
+reviews2018_full_ratings$comp.benefit.stars[reviews2018_full_ratings$comp.benefit.stars == "none"] <- NA
+reviews2018_full_ratings$senior.mangemnet.stars[reviews2018_full_ratings$senior.mangemnet.stars == "none"] <- NA
+
+reviews2018_full_ratings <- na.omit(reviews2018_full_ratings)
+
+reviews2018_full_ratings$overall.ratings <- as.numeric(as.character(reviews2018_full_ratings$overall.ratings))
+reviews2018_full_ratings$work.balance.stars <- as.numeric(as.character(reviews2018_full_ratings$work.balance.stars))
+reviews2018_full_ratings$culture.values.stars <- as.numeric(as.character(reviews2018_full_ratings$culture.values.stars))
+reviews2018_full_ratings$carrer.opportunities.stars <- as.numeric(as.character(reviews2018_full_ratings$carrer.opportunities.stars))
+reviews2018_full_ratings$comp.benefit.stars <- as.numeric(as.character(reviews2018_full_ratings$comp.benefit.stars))
+reviews2018_full_ratings$senior.mangemnet.stars <- as.numeric(as.character(reviews2018_full_ratings$senior.mangemnet.stars))
+
+corrplot(cor(reviews2018_full_ratings), method="color", type = "upper", tl.col="black",
+         tl.srt=45, addCoef.col = "gray8", diag = T)
+
+```
+
+
+  This matix displays the correlation between each category of ratings. Overall rating is most strongly related to culture and values rating. Also, 0.78 is the highest correlation in this matrix. This means that companies with a better culture and values environment are likely to receive a better overall rating. For employees, this means that **culture and values is a crucial aspect of their overall experience.** Furthermore, for people who are viewing Glassdoor to learn about companies, it is sensible to pay close attention to the culture and values ratings because this area is likely to determine their future experience in the company.
+
+  Overall rating is least related to company benefits. This tells us that **company benefits do not necesarily determine employees' overall experience.** This is worth noticing because often company benefits are the first consideration for job seekers before they even get in contact with the company. In fact, looking at this graph, *it is reasonable to advise job seekers to read more into the other aspects of the company beside benefits.*
+  
+  
+
+```{r}
+nchar_pros <- nchar(as.vector(reviews2018$pros))
+nchar_cons <- nchar(as.vector(reviews2018$cons))
+nchar_reviews2018 <- data.frame(company = reviews2018$company, pros = nchar_pros, cons = nchar_cons)
+
+c13 <- nchar_reviews2018 %>%
+  group_by(company) %>%
+  summarise(mean = mean(pros)) %>%
+ggplot(., aes(reorder(company, + mean), mean)) + 
+  geom_bar(stat = "identity", colour = "black", fill = "yellowgreen")+
+  coord_flip()+
+  labs(x="", y="Mean number of characters", title = "Pros")+
+  geom_text(aes(y = mean/2, label = round(mean,0)))
+
+
+c14 <- nchar_reviews2018 %>%
+  group_by(company) %>%
+  summarise(mean = mean(cons)) %>%
+ggplot(., aes(reorder(company, + mean), mean)) + 
+  geom_bar(stat = "identity", colour = "black", fill = "orangered")+
+  coord_flip()+
+  labs(x="", y="Mean number of characters", title = "Cons")+
+  geom_text(aes(y = mean/2, label = round(mean,0)))
+
+grid.arrange(c13, c14, ncol = 2)
+```
+
+
+  These two graphs compare the mean number of characters employees wrote in pros and cons. Generally people wrote more in cons. Employees from Facebook and Netflix on average wrote more in their reviews. **Facebook** has the highest average in pros. Netflix has the highest average in cons.
+
+  As mentioned brieftly earlier, **Netflix** has relatively more variance in their ratings. This could be potentially related to the fact that it has the highest character count in cons. Employees probably have varied opinions about different aspects of the company, and they expressed their opinions in the reviews. Notice that Netflix had the least number of reviews among all the companies in this dataset. The fact that the size of sample is so small, yet the average character count in cons is so high, potentially tells us that **employees had complicated experiences working there. **
+  
+  
+## **Part 2: What you might perceive from the site?**
+
+  When you go to a company's page on Glassdoor, overall data summaries are presented at the very top. As you scroll down, the reviews section starts to appear. Number of helpful count is labeled on the right upper corner of every review. We consider those reviews with more helpful counts more eyecatching than the rest. As a result, they are more likely to leave an impression on readers. Let’s compare the number of characters of pros and cons with more than 10 helpful counts and see if the result is different from the last graph. 
+ 
+
+```{r}
+reviews_helpful <- filter(reviews2018, reviews2018$helpful.count > 10)
+dim(reviews_helpful)
+
+tabl_reviews_helpful <- as.data.frame(table(reviews_helpful$company))
+names(tabl_reviews_helpful)[1] <- "Company_Name"
+names(tabl_reviews_helpful)[2] <- "Reviews_with_More_Than_Ten_Helpful_Count"
+tabl_reviews_helpful[order(tabl_reviews_helpful$Reviews_with_More_Than_Ten_Helpful_Count, decreasing = T),]
+```
+
+The number of reviews with more than 10 helpful counts is significantly less. 
+
+
+```{r}
+nchar_pros_helpful <- nchar(as.vector(reviews_helpful$pros))
+nchar_cons_helpful <- nchar(as.vector(reviews_helpful$cons))
+nchar_reviews_helpful <- data.frame(company = reviews_helpful$company, pros = nchar_pros_helpful, cons = nchar_cons_helpful)
+
+c15 <- nchar_reviews_helpful %>%
+  group_by(company) %>%
+  summarise(mean = mean(pros)) %>%
+  ggplot(., aes(reorder(company, + mean), mean)) + 
+  geom_bar(stat = "identity", colour = "black", fill = "limegreen")+
+  coord_flip()+
+  labs(x="", y="Mean number of characters with >10 helpful count", title = "Pros")+
+  geom_text(aes(y = mean/2, label = round(mean,0)))
+
+
+c16 <- nchar_reviews_helpful %>%
+  group_by(company) %>%
+  summarise(mean = mean(cons)) %>%
+  ggplot(., aes(reorder(company, + mean), mean)) + 
+  geom_bar(stat = "identity", colour = "black", fill = "orangered3")+
+  coord_flip()+
+  labs(x="", y="Mean number of characters with >10 helpful count", title = "Cons")+
+  geom_text(aes(y = mean/2, label = round(mean,0)))
+
+grid.arrange(c15, c16, ncol = 2)
+```
+
+
+
+  **Google** has the most character count in pros and relatively low character count in cons. This means that readers are more likely to see positive comments rather than negative ones when they browse through the webpage. As a result, there is a bigger chance for readers to leave with a quite positive impression about Google.  
+  
+  On the contrary, **Apple** has way more character count in cons than in pros. Despite being one of the most eyecatching tech companies in the world, Apple seemed to have received a handful of complaints from its employees. Elongated paragraphs in cons could give readers the impression that Apple might not be the best place to work at. 
+  
+  
+
+## **Conclusion**
+  
+Glassdoor did a good job reflecting the overall statistics. The overall statistics are provided at the top of the page. The overall ratings and ratings in the other 5 categories analyzed in this report are provided on the page as well. However, Glassdoor does not have the option to filter reviews by time. The good side of including reviews from previous years is that it gives Glassdoor a bigger dataset to generate the overall statistics. However, this could potentially include outdated reviews.
+  
+On the other hand, the webpage’s presentation of reviews could create an impression different from reality. When we compared the character count of reviews with and without more than 10 helpful counts, the difference started to appear. When we inlcude all reviews, Facebook has the most average characters in pros, while Netflix has the most average characters in cons. However, when we include only reviews with more than 10 helpful counts, which are the ones more likely to be seen by readers, Google has the most average characters in pros while Apple has the most average characters in cons. This tells us that readers might not acquire the most objective perspective by simply reading the webpage.
+  
+The presentation of the webpage can alter readers perceptions. When it comes to reviews, it is a hard but important task to arrange the webpage in a way that reflects the census results objectively. It is hard to achieve objectivity because the readers’ subjective needs determine how they process the information.  It is important because it touches on ethics. Unlawful manipulations of review results could change the public’s attitude toward a company significantly. It would be unfortunate if such manipulations are employed in business competitions.
+	
+To conclude, Glassdoor is an effective site in collecting and presenting reviews of companies. However, readers should be careful when internalizing specific reviews. What is most accessible on the webpage might not be the most suggestive views. **It would be helpful if Glassdoor could present an overall summary of the number of characters of pros and cons for each company. Natural Language Processing could be displayed more in presenting reviews.** 
+	
+
+
+
+
+
+
+
+
+
+
+
